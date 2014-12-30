@@ -4,14 +4,46 @@ import socket
 import csv
 from threading import Thread, Semaphore
 import localization
-import pygame, sys
-from StdSuites.AppleScript_Suite import integer
 import os
 
+SERVERIP = socket.gethostbyname(socket.gethostname())
+SERVERPORT = 1395
+
 mutex = Semaphore(1)
-xGraphic =0
-yGraphic =0
-zGraphic =0
+
+class ConnectionHandler(Thread):
+    def __init__(self, serversocket, BSSID_APinfo, SignalStrength_RSSI, APlocation):
+        Thread.__init__(self)
+        self.serversocket = serversocket
+        self.BSSID_APinfo = BSSID_APinfo
+        self.SignalStrength_RSSI = SignalStrength_RSSI
+        self.APlocation = APlocation
+
+    def run(self):
+        while True:
+            (clientsocket, address) = self.serversocket.accept()
+            mutex.acquire()
+            print "S: Receiving..."
+            try:
+                message = clientsocket.recv(2048)
+                print "S: Received:\n", message
+                (position, clientID, floorNum) = localization.start(message, self.BSSID_APinfo, self.SignalStrength_RSSI, self.APlocation)
+    
+                print ("Client %s is on the %d floor -> Predicted Location is:" % (clientID, floorNum))
+                print "*******************"
+                print "X:", position[0]
+                print "Y:", position[1]
+                print "Z:", position[2]
+                print "*******************"
+
+            except:
+                print "S: Error"
+
+            finally:
+                clientsocket.close()
+                print "S: Done\n"
+                mutex.release()
+            
 
 '''
 FindSignalStrength_RSSI() a sub function that returns a hardcoded dictionary, SignalStrength_RSSI. 
@@ -138,10 +170,10 @@ def Get_APLocation():
     APlocation['phillips-428-ap'] = [2117,1554,1466.35]
     APlocation['phillips-422-ap'] = [2086,2142,1466.35]
 
-    return APlocation 
+    return APlocation
 
 # start of program
-print ("S: Connecting...")
+print "S: Connecting..."
 
 '''
 Step 1: Read the  csv file
@@ -176,9 +208,8 @@ APlocation = Get_APLocation()
 '''
 Step 4: Create TCP connection
 '''
-SERVERIP = socket.gethostbyname(socket.gethostname())
-SERVERPORT = 1395
 serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 # mark the socket so we can rebind quickly to this port number
 # after the socket is closed
 serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -192,110 +223,6 @@ serversocket.listen(5)
 '''
 Step 5: create 32 server threads
 '''
-
-class ConnectionHandler(Thread):
-    def __init__(self, serversocket, BSSID_APinfo, SignalStrength_RSSI, APlocation):
-        Thread.__init__(self)
-        self.serversocket = serversocket
-        self.BSSID_APinfo = BSSID_APinfo
-        self.SignalStrength_RSSI = SignalStrength_RSSI
-        self.APlocation = APlocation
-
-    def run(self):
-        while True:
-            (clientsocket, address) = self.serversocket.accept()
-            mutex.acquire()
-            print ("S: Receiving...")
-            try:
-                message = clientsocket.recv(1024*5).decode()      
-                print(message)
-                (position, clientID, floorNum) = localization.start(message, self.BSSID_APinfo, self.SignalStrength_RSSI, self.APlocation)
-                global xGraphic
-                xGraphic=position[0]
-                global yGraphic
-                yGraphic=position[1]
-                global zGraphic
-                zGraphic=floorNum
-                print ("Client %s is on the %d floor -> Predicted Location is:" % (clientID, floorNum))
-                print ("*******************")
-                print ("X:", position[0])
-                print ("Y:", position[1])
-                print ("Z:", position[2])
-                print ("*******************")
-
-               
-            except:
-                print ("S: Error")
-
-            finally:
-                clientsocket.close()
-                print ("S: Done\n")
-                mutex.release()
-
 for i in range(32):
-    ConnectionHandler(serversocket, BSSID_APinfo, SignalStrength_RSSI, APlocation).start() 
+    ConnectionHandler(serversocket, BSSID_APinfo, SignalStrength_RSSI, APlocation).start()
     
-'graph handling'
-pygame.init()
-pygame.display.set_caption('Position Tracking')
-backgroundPic = os.path.join(os.path.dirname(__file__), 'pics/PH2.jpg')
-background=pygame.image.load(backgroundPic)
-screen=pygame.display.set_mode(background.get_rect().size,0,32)
-background=background.convert()
-#mouse_c=pygame.image.load("/Users/BboyKellen/Documents/LiClipse Workspace/MENG/PH2.jpg").convert_alpha()
-position=[300,176]  
-color=[255,0,0]  
-color_cross=[0,0,255]
-radius=(6)
-minus=True
-clock=pygame.time.Clock()
-myfont = pygame.font.SysFont("monospace", 15)
-
-while True:
-    for event in pygame.event.get():
-        if event.type== pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-    screen.blit(background,(0,0))   
-    x,y=pygame.mouse.get_pos()        
-    if minus==True:
-        radius -=1
-        if radius==0:
-            minus=False
-    else:
-        radius+=1
-        if radius==6:
-            minus=True
-                
-         
-    'get the position in the map'
-    #print (background.get_rect().size)
-    position[0]= int((558 / 2550.0) * float(xGraphic))
-    position[1]= int((799/ 3509.0) * float(yGraphic))
-    'print mouse building location'
-    labelX=int(x/558.0*2550.0)
-    labelY=int(y/799.0*3509.0)
-    label = myfont.render("("+str(labelX)+","+str(labelY)+")", 1, (255,0,0))
-    #label = myfont.render("("+str(position[0])+","+str(position[1])+")", 1, (255,0,0))
-    locationLabel=myfont.render("("+str(xGraphic)+","+str(yGraphic)+")", 1, (255,0,0))
-    screen.blit(label, (300, 650))  
-    screen.blit(locationLabel, (300, 600))  
-    screen.lock()
-    'draw positions'  
-    pygame.draw.circle(screen,color, position,radius)
-    pygame.draw.line(screen,color_cross,(x-10,y),(x+10,y),1)
-    pygame.draw.line(screen,color_cross,(x,y+10),(x,y-10),1)  
-    'draw routers'
-    keys=APlocation.keys();
-    apPosition=[1000,1000];
-    for key in keys:
-        if APlocation[key][2]==650.65:
-            apPosition[0]= int((558 / 2550.0) * float(APlocation[key][0]))
-            apPosition[1]= int((799/ 3509.0) * float(APlocation[key][1]))
-            pygame.draw.circle(screen,[255,0,255], apPosition,3)  
-            #print(str(APlocation[key][0])+" "+str(APlocation[key][1]))
-    'release the canvas'
-    screen.unlock()
-    pygame.display.update()
-    pygame.display.flip()
-    clock.tick(30)
