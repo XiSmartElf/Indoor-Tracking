@@ -63,7 +63,7 @@ def Get_BSSIDlocation(BSSID_SignalStrength,BSSID_APinfo, APlocation):
             if temp in APlocation:
                 BSSIDlocation[keys[i]] = APlocation.get(temp,"unknown")
             else:
-                print ("AP location not found " + keys[i] + " " + str(BSSID_SignalStrength[keys[i]]))
+                print "AP location not found " + keys[i] + " " + str(BSSID_SignalStrength[keys[i]])
                 
     return BSSIDlocation
 
@@ -164,7 +164,7 @@ def getFloorNumber(max_BSSID, BSSID_APinfo, APlocation):
         return z_floorNum[APlocation[APID][2]]
     
     else:
-        print ("BSSID %s is not in BSSID_APinfo" % (max_BSSID))
+        print "BSSID %s is not in BSSID_APinfo" % (max_BSSID)
         return -1
 
 
